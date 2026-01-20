@@ -808,7 +808,7 @@ class WaveStrategy:
 
             logger.info(f"associated order id = {associated_order_id} --- ")
             
-            if status == 'COMPLETE' or status == 2: # TODO: Check this - this is for fyers and zerodha
+            if status == 'COMPLETE' or status == 2:
                 logger.info(f"Order {order_id} executed successfully")
                 self._complete_order(order_id)
                 self.order_tracker.record_order_complete(order_id, order_info['transaction_type'])
@@ -823,7 +823,7 @@ class WaveStrategy:
                     self._remove_order(associated_order_id)
                 self._remove_order(order_id)
 
-            elif (status == 'OPEN' or status == 'UPDATE') or status == 6: #TODO Vibhu - Need to check update status for Fryers
+            elif (status == 'OPEN' or status == 'UPDATE') or status == 6:
                 # Update order details
                 if 'price' in order_data:
                     logger.info(f"There is price in Order_Info = {order_data} - "+str(order_data.get('price')))

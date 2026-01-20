@@ -5,7 +5,7 @@ broker-agnostic abstraction, It introduces:
 - Core domain models and a single driver interface
 - Symbol normalization with per-broker resolvers
 - Central mapping tables
-- Pluggable drivers (`fyers`, `zerodha`) with a registry
+- Pluggable drivers (`zerodha`) with a registry
 - A simple facade `BrokerGateway` for consumers
 
 Example:
@@ -13,7 +13,7 @@ Example:
 ```python
 from brokers import BrokerGateway, OrderRequest, Exchange, OrderType, TransactionType, ProductType
 
-gw = BrokerGateway.from_name("fyers")  # or "zerodha"
+gw = BrokerGateway.from_name("zerodha")
 funds = gw.get_funds()  # Raises UnsupportedOperationError until drivers are fully implemented
 
 # Place an order (symbol is canonical EXCH:SYMBOL under the hood)

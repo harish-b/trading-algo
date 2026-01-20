@@ -13,9 +13,6 @@
 #
 # Each trade uses a multiplier system based on the magnitude of price movement,
 # allowing the strategy to scale positions according to market volatility.
-# If working with Fyers, the values will be different and would need to adhere
-# to the expected values of Fyers API (it would also require some changes in 
-# the way broker methods are called in the `survivor.py` file)
 
 default:
   # ========================================================================

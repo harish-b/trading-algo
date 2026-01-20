@@ -36,9 +36,5 @@ def rate_limited(
     return decorator
 
 
-def rate_limited_fyers() -> Callable[[F], F]:
-    """Preconfigured rate limiter for Fyers API calls."""
-
-    return rate_limited(calls_per_second=9, calls_per_minute=195, calls_per_day=99900)
 
 
