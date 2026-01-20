@@ -50,22 +50,7 @@ class BrokerGateway:
         return self.driver.get_position(symbol, exchange)
 
     # --- Orders ---
-    def place_order(self, request: Union[OrderRequest, Dict[str, Any]]) -> Union[OrderResponse, Dict[str, Any]]:
-        # Back-compat: accept Fyers-like dicts and return legacy-shaped dict
-        if isinstance(request, dict):
-            req_obj = self._dict_to_order_request(request)
-            resp = self.place_order(req_obj)  # type: ignore[arg-type]
-            # Convert to legacy Fyers-like response shape
-            result: Dict[str, Any] = {
-                "s": "ok" if resp.status == "ok" else "error",
-                "id": resp.order_id,
-            }
-            if resp.message:
-                result["message"] = resp.message
-            if resp.raw is not None:
-                result["raw"] = resp.raw
-            return result
-
+    def place_order(self, request: OrderRequest) -> OrderResponse:
         # Typed path
         internal = f"{request.exchange.value}:{request.symbol}"
         broker_symbol = symbol_registry.to_broker_symbol(self.broker_name, internal)
@@ -75,12 +60,7 @@ class BrokerGateway:
         )
         return self.driver.place_order(req2)
 
-    def cancel_order(self, order_id: Union[str, Dict[str, Any]]) -> Union[OrderResponse, Dict[str, Any]]:
-        # Back-compat: allow dict {"id": ...}
-        if isinstance(order_id, dict):
-            oid = str(order_id.get("id") or order_id.get("order_id") or "")
-            resp = self.driver.cancel_order(oid)
-            return {"s": "ok" if resp.status == "ok" else "error", "id": oid, "raw": resp.raw}
+    def cancel_order(self, order_id: str) -> OrderResponse:
         return self.driver.cancel_order(str(order_id))
 
     def modify_order(self, order_id: str, updates: Dict[str, Any]) -> OrderResponse:
@@ -189,7 +169,7 @@ class BrokerGateway:
         on_noreconnect: Any | None = None,
         **kwargs: Any,
     ) -> None:
-        # Forward known callbacks and any extra kwargs (e.g., simulate_date for fyrodha)
+        # Forward known callbacks and any extra kwargs
         self.driver.connect_websocket(
             on_ticks=on_ticks,
             on_connect=on_connect,
@@ -273,7 +253,7 @@ class BrokerGateway:
     def _normalize_margin_orders(self, orders: List[Any]) -> List[Dict[str, Any]]:
         """Normalize incoming margin order inputs to the selected broker's expected payload.
 
-        Accepts either legacy Fyers-shaped dicts or standardized OrderRequest objects and
+        Accepts either legacy-shaped dicts or standardized OrderRequest objects and
         converts them to the adapter-specific request shape.
         """
         from .schemas import OrderRequest as _OrderRequest
@@ -281,17 +261,7 @@ class BrokerGateway:
         broker = (self.broker_name or "").lower()
         out: List[Dict[str, Any]] = []
 
-        # Fast path: Fyers accepts Fyers-shaped dicts and we keep OrderRequest mapping inside driver
-        if broker == "fyers":
-            for o in orders:
-                if isinstance(o, dict):
-                    out.append(o)
-                else:
-                    # Let driver map standardized request
-                    out.append({"__order_request__": o})  # sentinel for driver path
-            return out
-
-        # Zerodha mapping: convert generic/Fyers-like dicts or OrderRequest into order_margins payload
+        # Zerodha mapping: convert generic or OrderRequest into order_margins payload
         if broker == "zerodha":
             for o in orders:
                 if isinstance(o, _OrderRequest):
@@ -318,7 +288,7 @@ class BrokerGateway:
                         }
                     )
                 elif isinstance(o, dict):
-                    # Likely Fyers-shaped
+                    # Likely legacy-shaped
                     symbol = str(o.get("symbol", ""))
                     exch = symbol.split(":", 1)[0] if ":" in symbol else "NSE"
                     tsym = symbol.split(":", 1)[1] if ":" in symbol else symbol
@@ -359,69 +329,5 @@ class BrokerGateway:
         # Default passthrough
         return [o if isinstance(o, dict) else {"__order_request__": o} for o in orders]
 
-    def _dict_to_order_request(self, payload: Dict[str, Any]) -> OrderRequest:
-        """Convert a Fyers-like order dict into a standardized OrderRequest."""
-        # Symbol handling
-        symbol = str(payload.get("symbol", ""))
-        if ":" in symbol:
-            exch_str, sym = symbol.split(":", 1)
-        else:
-            exch_str, sym = "NSE", symbol
-        # Remove -EQ suffix for canonical symbol
-        if sym.upper().endswith("-EQ"):
-            sym = sym[:-3]
-
-        # Quantity
-        qty = int(payload.get("qty") or payload.get("quantity") or 1)
-
-        # Order type mapping
-        fy_type = int(payload.get("type", 2))
-        order_type = {1: OrderType.LIMIT, 2: OrderType.MARKET, 3: OrderType.STOP, 4: OrderType.STOP_LIMIT}.get(
-            fy_type, OrderType.MARKET
-        )
-
-        # Side mapping
-        side = int(payload.get("side", 1))
-        txn = TransactionType.BUY if side == 1 else TransactionType.SELL
-
-        # Product mapping
-        prod_str = str(payload.get("productType", "INTRADAY")).upper()
-        product = {
-            "INTRADAY": ProductType.INTRADAY,
-            "CNC": ProductType.CNC,
-            "MARGIN": ProductType.MARGIN,
-        }.get(prod_str, ProductType.INTRADAY)
-
-        # Prices
-        price = payload.get("limitPrice")
-        stop_price = payload.get("stopPrice")
-
-        # Validity
-        validity = Validity.DAY if str(payload.get("validity", "DAY")).upper() == "DAY" else Validity.IOC
-
-        tag = payload.get("orderTag") or payload.get("tag")
-
-        return OrderRequest(
-            symbol=sym,
-            exchange=Exchange[exch_str],
-            quantity=qty,
-            order_type=order_type,
-            transaction_type=txn,
-            product_type=product,
-            price=float(price) if price is not None else None,
-            stop_price=float(stop_price) if stop_price is not None else None,
-            validity=validity,
-            tag=str(tag) if tag is not None else None,
-            extras={
-                k: payload[k]
-                for k in (
-                    "disclosedQty",
-                    "offlineOrder",
-                    "stopLoss",
-                    "takeProfit",
-                )
-                if k in payload
-            },
-        )
 
 

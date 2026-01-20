@@ -30,27 +30,11 @@ class BrokerRegistry:
 
 def register_default_brokers() -> None:
     try:
-        from .integrations.fyers.driver import FyersDriver
-
-        BrokerRegistry.register("fyers", lambda: FyersDriver())
-    except Exception:
-        logging.error("Error registering fyers driver", exc_info=True)
-        pass
-
-    try:
         from .integrations.zerodha.driver import ZerodhaDriver
 
         BrokerRegistry.register("zerodha", lambda: ZerodhaDriver())
     except Exception:
         logging.error("Error registering zerodha driver", exc_info=True)
-        pass
-
-    try:
-        from .integrations.fyrodha.driver import FyrodhaDriver
-
-        BrokerRegistry.register("fyrodha", lambda: FyrodhaDriver())
-    except Exception:
-        logging.error("Error registering fyrodha driver", exc_info=True)
         pass
 
 

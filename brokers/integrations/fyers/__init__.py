@@ -1,3 +1,0 @@
-"""Fyers broker driver."""
-
-

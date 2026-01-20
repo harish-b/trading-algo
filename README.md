@@ -46,16 +46,15 @@ pip install -r requirements.txt  # You may need to generate this from pyproject.
 
 2. Edit `.env` and fill in your broker credentials:
    ```bash
-    # should be one of -  fyers, zeodha
+    # should be - zerodha
     BROKER_NAME=<INPUT_YOUR_BROKER_NAME>
     BROKER_API_KEY=<INPUT_YOUR_API_KEY>
     BROKER_API_SECRET=<INPUT_YOUR_API_SECRET>
-    BROKER_LOGIN_MODE='auto' # manual or auto - fyers only with 'auto' for now
+    BROKER_LOGIN_MODE='auto' # manual or auto
     BROKER_ID=<INPUT_YOUR_BROKER_ID>
     BROKER_TOTP_REDIDRECT_URI=<INPUT_YOUR_TOTP_REDIRECT_URI>
     BROKER_TOTP_KEY=<INPUT_YOUR_TOTP_KEY>
-    BROKER_TOTP_PIN=<INPUT_YOUR_TOTP_PIN> # Required for fyers, not zerodha
-    BROKER_PASSWORD=<INPUT_YOUR_BROKER_PASSWORD> # Required for zerodha, not fyers
+    BROKER_PASSWORD=<INPUT_YOUR_BROKER_PASSWORD>
    ```
 
 ### 3. Running Strategies
@@ -89,12 +88,11 @@ python survivor.py --show-config
 
 ### 4. Available Brokers
 
-- **Fyers**: Supports REST API for historical data, quotes, and WebSocket for live data
 - **Zerodha**: Supports KiteConnect API with order management and live data streaming
 
 ### 5. Core Components
 
-- `brokers/`: Broker implementations (Fyers, Zerodha)
+- `brokers/`: Broker implementations (Zerodha)
 - `dispatcher.py`: Data routing and queue management - WIP
 - `orders.py`: Order management utilities - WIP
 - `logger.py`: Logging configuration
@@ -103,12 +101,8 @@ python survivor.py --show-config
 ### Example Usage
 
 ```python
-# ==================
-# IMPORTANT - Strategies are tested with Zerodha, although it should work with fyers as well 
-# testing might be required to make sure the results are as expected
-# ==================
 from brokers import BrokerGateway
-broker = BrokerGateway.from_name(os.getenv("BROKER_NAME")) # fyers or zerodha
+broker = BrokerGateway.from_name(os.getenv("BROKER_NAME")) # zerodha
 # Get historical data, place orders, etc.
 ```
 

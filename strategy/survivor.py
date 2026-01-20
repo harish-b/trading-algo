@@ -73,8 +73,6 @@ class SurvivorStrategy:
     2. **Position Scaling**: Limits multiplier to prevent oversized positions
     3. **Strike Adjustment**: Dynamically adjusts strikes for adequate premium
     4. **Reset Logic**: Prevents runaway reference point drift
-
-    PS: This will only work with Zerodha broker out of the box. For Fyers, there needs to be some straight forward changes to get quotes, place orders etc.
     """
     
     def __init__(self, broker, config, order_tracker):
@@ -1075,7 +1073,7 @@ PARAMETER GROUPS:
     # This token is used for websocket subscription to receive real-time price updates
     try:
         quote_data = broker.get_quote(config['index_symbol'])
-        instrument_token = config['index_symbol'] # TODO: Make Sure config['index_symbol'] is correct as per fyers format if not working - Need to standardize the format
+        instrument_token = config['index_symbol']
         logger.info(f"✓ Index instrument token obtained: {instrument_token}")
     except Exception as e:
         logger.error(f"Failed to get instrument token for {config['index_symbol']}: {e}")

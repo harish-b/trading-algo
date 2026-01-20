@@ -33,24 +33,6 @@ class MappingRegistry:
         }
         cls.validity["zerodha"] = {Validity.DAY: "DAY", Validity.IOC: "IOC"}
 
-        # Fyers
-        cls.order_type["fyers"] = {
-            OrderType.MARKET: 2,
-            OrderType.LIMIT: 1,
-            OrderType.STOP: 3,
-            OrderType.STOP_LIMIT: 4,
-        }
-        cls.product_type["fyers"] = {
-            ProductType.INTRADAY: "INTRADAY",
-            ProductType.CNC: "CNC",
-            ProductType.MARGIN: "MARGIN",
-        }
-        cls.transaction_type["fyers"] = {
-            TransactionType.BUY: 1,
-            TransactionType.SELL: -1,
-        }
-        cls.validity["fyers"] = {Validity.DAY: "DAY", Validity.IOC: "IOC"}
-
 
 # Initialize defaults
 MappingRegistry.register_default()
