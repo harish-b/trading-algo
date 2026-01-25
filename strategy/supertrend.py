@@ -8,6 +8,7 @@ import numpy as np
 import datetime
 import time
 import logging
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Tuple, Optional
 from dotenv import load_dotenv
 load_dotenv()
@@ -43,13 +44,16 @@ class SupertrendStrategy:
 
         self.product_type = ProductType.MARGIN if config.get("product_type", "NRML") == "NRML" else ProductType.INTRADAY
         self.tag = config.get("tag", "SUPERTREND_STRAT")
-        self.lot_size = config.get("lot_size", 75)
+        self.lot_size = config.get("lot_size", 65)
 
         self.min_delta = config.get("min_delta", 0.30)
         self.max_delta = config.get("max_delta", 0.45)
         self.volatile_size_mult = config.get("volatile_size_mult", 0.75)
 
-        self.start_trading_time = datetime.datetime.strptime(config.get("start_trading_time", "09:15"), "%H:%M").time()
+        # Timezone handling for India
+        self.tz = ZoneInfo("Asia/Kolkata")
+
+        self.start_trading_time = datetime.datetime.strptime(config.get("start_trading_time", "09:40"), "%H:%M").time()
         self.no_new_trades_after = datetime.datetime.strptime(config.get("no_new_trades_after", "14:30"), "%H:%M").time()
         self.last_exit_time = datetime.datetime.strptime(config.get("last_exit_time", "15:00"), "%H:%M").time()
         self.square_off_time = datetime.datetime.strptime(config.get("square_off_time", "15:15"), "%H:%M").time()
@@ -154,24 +158,33 @@ class SupertrendStrategy:
         if not expiry_date:
             return None
 
+        # Get base symbol for matching (e.g., NIFTY 50 -> NIFTY)
+        raw_sym = self.index_symbol.split(':')[1]
+        if "NIFTY 50" in raw_sym:
+            sym_prefix = "NIFTY"
+        elif "NIFTY BANK" in raw_sym:
+            sym_prefix = "BANKNIFTY"
+        else:
+            sym_prefix = raw_sym.replace(" ", "")
+
         instruments = [inst for inst in self.all_instruments
                       if inst.instrument_type == option_type
                       and inst.expiry == expiry_date
-                      and inst.symbol.startswith(self.index_symbol.split(':')[1].replace(" ", ""))]
+                      and inst.symbol.startswith(sym_prefix)]
 
         if not instruments:
-            # Try alternative symbol matching for NIFTY
-            sym = self.index_symbol.split(':')[1].replace(" ", "")
+            # Try alternative symbol matching
             instruments = [inst for inst in self.all_instruments
                           if inst.instrument_type == option_type
                           and inst.expiry == expiry_date
-                          and sym in inst.symbol]
+                          and sym_prefix in inst.symbol]
 
         best_inst = None
         closest_delta_diff = float('inf')
         target_delta = (self.min_delta + self.max_delta) / 2
 
-        days_to_expiry = (expiry_date - datetime.date.today()).days
+        today = datetime.datetime.now(self.tz).date()
+        days_to_expiry = (expiry_date - today).days
         if days_to_expiry <= 0: days_to_expiry = 0.5 # Same day expiry
 
         for inst in instruments:
@@ -189,9 +202,16 @@ class SupertrendStrategy:
 
     def _get_nearest_expiry(self):
         """Finds nearest expiry for the index"""
-        sym = self.index_symbol.split(':')[1].replace(" ", "")
-        expiries = sorted(list(set([inst.expiry for inst in self.all_instruments if sym in inst.symbol and inst.expiry])))
-        today = datetime.date.today()
+        raw_sym = self.index_symbol.split(':')[1]
+        if "NIFTY 50" in raw_sym:
+            sym_prefix = "NIFTY"
+        elif "NIFTY BANK" in raw_sym:
+            sym_prefix = "BANKNIFTY"
+        else:
+            sym_prefix = raw_sym.replace(" ", "")
+
+        expiries = sorted(list(set([inst.expiry for inst in self.all_instruments if sym_prefix in inst.symbol and inst.expiry])))
+        today = datetime.datetime.now(self.tz).date()
         for exp in expiries:
             if exp >= today:
                 return exp
@@ -228,10 +248,14 @@ class SupertrendStrategy:
             logger.error(f"Error verifying position: {e}")
             return False
 
-    def execute_trade(self, state: str, spot_price: float, current_atr: float):
+    def execute_trade(self, state: str, spot_price: float, current_atr: float, vol_ok: bool = True):
         """Executes trade based on market state"""
         if "Choppy" in state:
             logger.info("Market is choppy. No new trades.")
+            return
+
+        if not vol_ok:
+            logger.info("Volume confirmation failed. Skipping trade.")
             return
 
         option_type = "CE" if "Bullish" in state else "PE"
@@ -347,7 +371,7 @@ class SupertrendStrategy:
             return
 
         # Check Time Exit
-        now = datetime.datetime.now().time()
+        now = datetime.datetime.now(self.tz).time()
         if now >= self.square_off_time:
             self.close_position(f"Square-off Time ({self.square_off_time})")
             return
@@ -367,8 +391,9 @@ class SupertrendStrategy:
 
         # Update SL if trailing
         if self.current_position['trailing']:
-            # Trail based on ATR
-            new_sl = ltp - (self.trail_atr_mult * current_atr)
+            # Trail based on ATR scaled by delta
+            approx_delta = 0.4
+            new_sl = ltp - (self.trail_atr_mult * current_atr * approx_delta)
             if new_sl > self.current_position['sl']:
                 self.current_position['sl'] = new_sl
                 logger.debug(f"Updated trailing SL to {new_sl}")
@@ -388,8 +413,9 @@ class SupertrendStrategy:
             return
 
         # 2. Fetch Historical Data
-        end_date = datetime.datetime.now().strftime("%Y-%m-%d")
-        start_date = (datetime.datetime.now() - datetime.timedelta(days=5)).strftime("%Y-%m-%d")
+        now_ist = datetime.datetime.now(self.tz)
+        end_date = now_ist.strftime("%Y-%m-%d")
+        start_date = (now_ist - datetime.timedelta(days=5)).strftime("%Y-%m-%d")
 
         try:
             candles = self.broker.get_history(self.index_symbol, "5m", start_date, end_date)
@@ -403,16 +429,17 @@ class SupertrendStrategy:
             last_candle = df.iloc[-1]
             spot_price = last_candle['close']
             current_atr = last_candle['atr']
+            vol_ok = last_candle['vol_ok']
 
-            logger.info(f"State: {state} | Spot: {spot_price} | ATR: {current_atr:.2f}")
+            logger.info(f"State: {state} | Spot: {spot_price} | ATR: {current_atr:.2f} | Vol OK: {vol_ok}")
 
             # 3. Handle Active Trade
             self.manage_active_trade(spot_price, current_atr)
 
             # 4. Check for New Entries
-            now = datetime.datetime.now().time()
+            now = datetime.datetime.now(self.tz).time()
             if self.start_trading_time <= now <= self.no_new_trades_after:
-                self.execute_trade(state, spot_price, current_atr)
+                self.execute_trade(state, spot_price, current_atr, vol_ok)
             elif now > self.last_exit_time:
                 if self.current_position:
                     logger.info("Late session. Managing exits.")

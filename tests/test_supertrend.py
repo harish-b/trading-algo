@@ -15,7 +15,7 @@ class TestSupertrendStrategy(unittest.TestCase):
             "capital": 1000000,
             "risk_per_trade": 0.01,
             "stop_loss_pct": 0.20,
-            "lot_size": 75
+            "lot_size": 65
         }
         self.broker = MagicMock()
         # Mock download_instruments and get_instruments
@@ -64,15 +64,15 @@ class TestSupertrendStrategy(unittest.TestCase):
         # 1% of 1M is 10k risk.
         # Premium 100, 20% SL is 20 points.
         # 10k / 20 = 500 units.
-        # 500 rounded to lot size 75 is 450?
-        # Wait, 500 // 75 = 6. 6 * 75 = 450.
+        # 500 rounded to lot size 65 is 455?
+        # 500 // 65 = 7. 7 * 65 = 455.
         qty = self.strategy.calculate_quantity(100, False)
-        self.assertEqual(qty, 450)
+        self.assertEqual(qty, 455)
 
-        # Volatile mult is 0.75. 450 * 0.75 = 337.5.
-        # 337.5 // 75 = 4. 4 * 75 = 300.
+        # Volatile mult is 0.75. 455 * 0.75 = 341.25.
+        # 341.25 // 65 = 5. 5 * 65 = 325.
         qty_v = self.strategy.calculate_quantity(100, True)
-        self.assertEqual(qty_v, 300)
+        self.assertEqual(qty_v, 325)
 
 if __name__ == '__main__':
     unittest.main()

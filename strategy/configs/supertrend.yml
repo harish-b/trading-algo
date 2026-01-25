@@ -17,7 +17,7 @@ default:
   profit_threshold_pct: 0.30  # Start trailing after 30% gain
 
   # Time Constraints
-  start_trading_time: "09:15"
+  start_trading_time: "09:40"
   no_new_trades_after: "14:30"
   last_exit_time: "15:00"
   square_off_time: "15:15"
@@ -30,7 +30,7 @@ default:
   # Strategy Settings
   product_type: "NRML"
   tag: "SUPERTREND_STRAT"
-  lot_size: 75
+  lot_size: 65
 
   # Greeks Calculation
   interest_rate: 10.0
