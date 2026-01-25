@@ -1,0 +1,44 @@
+default:
+  index_symbol: "NSE:NIFTY 50"
+  exchange: "NFO"
+
+  # Supertrend parameters
+  st_period: 10
+  st_multiplier: 3.0
+
+  # ATR parameters
+  atr_period: 14
+
+  # Risk Management
+  capital: 1000000
+  risk_per_trade: 0.01  # 1% of capital
+  stop_loss_pct: 0.20   # 20% of premium
+  trail_atr_mult: 1.5
+  profit_threshold_pct: 0.30  # Start trailing after 30% gain
+
+  # Time Constraints
+  start_trading_time: "09:15"
+  no_new_trades_after: "14:30"
+  last_exit_time: "15:00"
+  square_off_time: "15:15"
+
+  # Filters
+  min_time_gap_candles: 3
+  require_volume_confirmation: true
+  volume_period: 20
+
+  # Strategy Settings
+  product_type: "NRML"
+  tag: "SUPERTREND_STRAT"
+  lot_size: 75
+
+  # Greeks Calculation
+  interest_rate: 10.0
+  todays_volatility: 20.0
+
+  # Strike selection
+  min_delta: 0.30
+  max_delta: 0.45
+
+  # Regimes
+  volatile_size_mult: 0.75 # 75% of normal size in volatile regime
