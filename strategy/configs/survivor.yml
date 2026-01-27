@@ -27,7 +27,7 @@ default:
   # Option series identifier - must match current trading option series
   # Format: NIFTY + expiry date (e.g., NIFTY25807 for 25th Jan 2025, 07th strike series)
   # This identifies which specific option expiry series to trade
-  symbol_initials: "NIFTY25807"
+  symbol_initials: "NIFTY26203"
   
   # ========================================================================
   # GAP PARAMETERS - TRADE TRIGGERING THRESHOLDS
@@ -52,12 +52,12 @@ default:
   # Base quantity for PE option trades - Multiple of Lot Size
   # Total quantity = pe_quantity × sell_multiplier
   # Example: If pe_quantity=75 and multiplier=2, total PE quantity = 150
-  pe_quantity: 75
+  pe_quantity: 130
   
   # Base quantity for CE option trades - Multiple of Lot Size
   # Total quantity = ce_quantity × sell_multiplier  
   # Example: If ce_quantity=75 and multiplier=2, total CE quantity = 150
-  ce_quantity: 75
+  ce_quantity: 130
   
   # ========================================================================
   # STRIKE SELECTION PARAMETERS

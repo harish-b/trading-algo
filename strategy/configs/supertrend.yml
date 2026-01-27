@@ -2,6 +2,9 @@ default:
   index_symbol: "NSE:NIFTY 50"
   exchange: "NFO"
 
+  sym_prefix: "NIFTY26210"
+  nearest_expiry: "2026-02-10"
+
   # Supertrend parameters
   st_period: 10
   st_multiplier: 3.0
@@ -10,11 +13,11 @@ default:
   atr_period: 14
 
   # Risk Management
-  capital: 1000000
+  capital: 100000
   risk_per_trade: 0.01  # 1% of capital
   stop_loss_pct: 0.20   # 20% of premium
   trail_atr_mult: 1.5
-  profit_threshold_pct: 0.30  # Start trailing after 30% gain
+  profit_threshold_pct: 0.15  # Start trailing after 30% gain
 
   # Time Constraints
   start_trading_time: "09:40"
@@ -34,7 +37,7 @@ default:
 
   # Greeks Calculation
   interest_rate: 10.0
-  todays_volatility: 20.0
+  todays_volatility: 15.0
 
   # Strike selection
   min_delta: 0.30
