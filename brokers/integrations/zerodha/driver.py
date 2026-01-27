@@ -137,6 +137,7 @@ class ZerodhaDriver(BrokerDriver):
             if "data" not in login_data:
                 return None
             request_id = login_data["data"]["request_id"]
+            print("Login response:", request_id)
 
             twofa_resp = session.post(
                 "https://kite.zerodha.com/api/twofa",
@@ -147,15 +148,20 @@ class ZerodhaDriver(BrokerDriver):
                 },
                 timeout=30,
             )
+            print("2FA response:", twofa_resp.json())
             twofa_data = twofa_resp.json()
             if "data" not in twofa_data:
                 return None
 
+            print("Fetching request token...")
+            print(session)
             connect_url = f"https://kite.trade/connect/login?api_key={api_key}"
             connect_resp = session.get(connect_url, allow_redirects=True, timeout=30)
+            print(connect_resp)
             if "request_token=" not in connect_resp.url:
                 return None
             request_token = connect_resp.url.split("request_token=")[1].split("&")[0]
+            print(request_token)
 
             kite = KiteConnect(api_key=api_key)
             sess = kite.generate_session(request_token, api_secret)
@@ -222,7 +228,7 @@ class ZerodhaDriver(BrokerDriver):
             product = M.product_type["zerodha"][request.product_type]
             txn_type = M.transaction_type["zerodha"][request.transaction_type]
             validity = M.validity["zerodha"][request.validity]
-            if request.price <= 0:
+            if request.price is not None and request.price <= 0:
                 request.price = 0.05
             order_id = self._kite.place_order(
                 variety=self._kite.VARIETY_REGULAR,
@@ -304,7 +310,7 @@ class ZerodhaDriver(BrokerDriver):
         exch, tradingsymbol = symbol.split(":", 1)
         return Quote(symbol=tradingsymbol, exchange=Exchange[exch], last_price=last_price, raw=data)
 
-    def get_history(self, symbol: str, interval: str, start: str, end: str) -> List[Dict[str, Any]]:
+    def get_history(self, symbol: str, interval: str, start: str, end: str, oi: bool = False) -> List[Dict[str, Any]]:
         if not self._kite:
             return []
         exch, tradingsymbol = symbol.split(":", 1)
