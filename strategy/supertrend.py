@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import pandas as pd
+from types import SimpleNamespace
 import numpy as np
 import datetime
 import time
@@ -190,38 +191,50 @@ class SupertrendStrategy:
         Selects a near-ATM option strike based on a target Delta range (0.30 - 0.45).
         Uses Mibian for Black-Scholes Greeks calculation.
         """
-        expiry_date = self._get_nearest_expiry()
+        expiry_date = config.get("nearest_expiry", "2026-02-03")
         if not expiry_date:
             return None
 
-        # Determine prefix for matching instrument symbols (e.g., NIFTY 50 -> NIFTY)
-        raw_sym = self.index_symbol.split(':')[1]
-        if "NIFTY 50" in raw_sym:
-            sym_prefix = "NIFTY"
-        elif "NIFTY BANK" in raw_sym:
-            sym_prefix = "BANKNIFTY"
-        else:
-            sym_prefix = raw_sym.replace(" ", "")
+        sym_prefix = config.get("sym_prefix", "NIFTY26203")
+
+        # Normalize expiry_date to a date object if necessary
+        if isinstance(expiry_date, str):
+            try:
+                expiry_date = datetime.datetime.strptime(expiry_date, "%Y-%m-%d").date()
+            except Exception:
+                # leave as-is if parsing fails
+                pass
+        elif isinstance(expiry_date, datetime.datetime):
+            expiry_date = expiry_date.date()
 
         # Filter instruments by type, expiry and symbol prefix
-        instruments = [inst for inst in self.all_instruments
-                      if inst.instrument_type == option_type
-                      and inst.expiry == expiry_date
-                      and inst.symbol.startswith(sym_prefix)]
+        
 
-        if not instruments:
-            # Fallback fuzzy matching
-            instruments = [inst for inst in self.all_instruments
-                          if inst.instrument_type == option_type
-                          and inst.expiry == expiry_date
-                          and sym_prefix in inst.symbol]
+        df = self.all_instruments
 
+        # Ensure expiry is datetime
+        df['expiry'] = pd.to_datetime(df['expiry'])
+        expiry_date = pd.to_datetime(expiry_date)
+
+        mask = (
+            (df['instrument_type'] == option_type) &
+            (df['expiry'] == expiry_date) &
+            (df['symbol'].str.contains(sym_prefix, na=False))   # more reliable than startswith
+        )
+
+        instruments = [SimpleNamespace(**row.to_dict()) for _, row in df.loc[mask].iterrows()]
+
+        print(f"Found {len(instruments)} instruments")
+
+
+        print(f"Found {len(instruments)} instruments for {option_type} with prefix {sym_prefix} expiring on {expiry_date}")
+        print([inst.symbol for inst in instruments])
         best_inst = None
         closest_delta_diff = float('inf')
         target_delta = (self.min_delta + self.max_delta) / 2 # Mid-point of range
 
         today = datetime.datetime.now(self.tz).date()
-        days_to_expiry = (expiry_date - today).days
+        days_to_expiry = (expiry_date.date() - today).days
         if days_to_expiry <= 0: days_to_expiry = 0.5 # Same day expiry handling
 
         # Iterate and find the strike closest to the target Delta
@@ -229,7 +242,7 @@ class SupertrendStrategy:
             # Calculate delta via Black-Scholes
             bs = mibian.BS([spot_price, inst.strike, self.interest_rate, days_to_expiry], volatility=self.todays_volatility)
             delta = abs(bs.callDelta if option_type == "CE" else bs.putDelta)
-
+            print(f"Strike: {inst.strike} | Delta: {delta:.4f}")
             # Check if within acceptable range
             if self.min_delta <= delta <= self.max_delta:
                 diff = abs(delta - target_delta)
@@ -238,23 +251,6 @@ class SupertrendStrategy:
                     best_inst = inst
 
         return best_inst
-
-    def _get_nearest_expiry(self):
-        """Finds the next available expiry date for the trading symbol."""
-        raw_sym = self.index_symbol.split(':')[1]
-        if "NIFTY 50" in raw_sym:
-            sym_prefix = "NIFTY"
-        elif "NIFTY BANK" in raw_sym:
-            sym_prefix = "BANKNIFTY"
-        else:
-            sym_prefix = raw_sym.replace(" ", "")
-
-        expiries = sorted(list(set([inst.expiry for inst in self.all_instruments if sym_prefix in inst.symbol and inst.expiry])))
-        today = datetime.datetime.now(self.tz).date()
-        for exp in expiries:
-            if exp >= today:
-                return exp
-        return None
 
     def calculate_quantity(self, premium: float, is_volatile: bool) -> int:
         """
@@ -301,9 +297,9 @@ class SupertrendStrategy:
             logger.info("Market is choppy. No new trades.")
             return
 
-        if not vol_ok:
-            logger.info("Volume confirmation failed. Skipping trade.")
-            return
+        # if not vol_ok:
+        #     logger.info("Volume confirmation failed. Skipping trade.")
+        #     return
 
         option_type = "CE" if "Bullish" in state else "PE"
         is_volatile = "volatile" in state
@@ -341,10 +337,12 @@ class SupertrendStrategy:
         quote = self.broker.get_quote(f"{self.exchange}:{inst.symbol}")
         premium = quote.last_price
 
+        print(f"Selected {inst.symbol} at premium {premium} and quote {quote}")
+
         # Liquidity guard
-        if quote.buy_quantity == 0 or quote.sell_quantity == 0:
-            logger.warning(f"Low liquidity for {inst.symbol}. Skipping.")
-            return
+        # if quote.buy_quantity == 0 or quote.sell_quantity == 0:
+        #     logger.warning(f"Low liquidity for {inst.symbol}. Skipping.")
+        #     return
 
         qty = self.calculate_quantity(premium, is_volatile)
 
@@ -479,12 +477,15 @@ class SupertrendStrategy:
         start_date = (now_ist - datetime.timedelta(days=5)).strftime("%Y-%m-%d")
 
         try:
-            # Pull 5m candles for signal calculation
-            candles = self.broker.get_history(self.index_symbol, "5m", start_date, end_date)
+            # Pull 1m candles for signal calculation
+            print(self.index_symbol, start_date, end_date)
+            candles = self.broker.get_history(self.index_symbol, "1m", start_date, end_date)
             if not candles:
                 logger.error("Failed to fetch historical data")
                 return
 
+            print(f"Fetched {len(candles)} candles")
+            print(candles[-5:])
             df = pd.DataFrame(candles)
             df = self.calculate_indicators(df)
             state = self.get_market_state(df)
@@ -520,7 +521,7 @@ if __name__ == "__main__":
     from queue import Queue
 
     parser = argparse.ArgumentParser(description="Supertrend Strategy Runner")
-    parser.add_argument('--config', type=str, default="strategy/configs/supertrend.yml",
+    parser.add_argument('--config', type=str, default="configs/supertrend.yml",
                         help="Path to YAML configuration")
     args = parser.parse_args()
 
@@ -539,6 +540,6 @@ if __name__ == "__main__":
     try:
         while True:
             strategy.run_iteration()
-            time.sleep(60) # Heartbeat interval
+            time.sleep(15) # Heartbeat interval
     except KeyboardInterrupt:
         logger.info("Strategy loop terminated by user.")
